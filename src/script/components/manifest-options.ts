@@ -28,6 +28,7 @@ import {
   CodeEditorSyncEvent,
   CodeEditorUpdateEvent,
 } from '../utils/interfaces.codemirror';
+import { PreviewStage } from '../utils/interfaces.previewer';
 import {
   fastTextFieldCss,
   fastButtonCss,
@@ -44,6 +45,7 @@ import './app-gallery';
 import './code-editor';
 import './flipper-button';
 import './hover-tooltip';
+import './manifest-previewer/manifest-previewer';
 import { generateMissingImagesBase64 } from '../services/icon_generator';
 import { generateScreenshots } from '../services/screenshots';
 import { validateScreenshotUrlsList } from '../utils/manifest-validation';
@@ -110,6 +112,11 @@ export class AppManifest extends LitElement {
 
   @state()
   protected iconsList: Array<Icon> | undefined = [];
+
+  /**
+   * The current screen in the preview component.
+   */
+  @state() previewStage: PreviewStage = 'name';
 
   protected get siteUrl(): string {
     if (!this.searchParams) {
@@ -232,7 +239,7 @@ export class AppManifest extends LitElement {
           justify-content: space-between;
           align-items: flex-start;
 
-          max-width: 800px;
+          max-width: 700px;
         }
 
         .info-item,
@@ -338,6 +345,10 @@ export class AppManifest extends LitElement {
         .modal-img {
           max-width: 400px;
         }
+
+        .info {
+          display: flex;
+        }
       `,
       // screenshots
       css`
@@ -402,7 +413,7 @@ export class AppManifest extends LitElement {
           visibility: visible;
         }
       `),
-      hidden_sm,
+      hidden_sm
     ];
   }
 
@@ -449,19 +460,27 @@ export class AppManifest extends LitElement {
           <div class="top-section">
             <h1>${localeStrings.text.manifest_options.top_section.h1}</h1>
           </div>
-
           <h2>${localeStrings.text.manifest_options.summary_body.h1}</h2>
           <div class="summary-body">
             <p>${localeStrings.text.manifest_options.summary_body.p}</p>
             <app-button id="manifest-done-button" @click=${this.done}
-              >${localeStrings.button.done}</app-button
-            >
+              >${localeStrings.button.done}</app-button>
           </div>
         </div>
         <fast-divider></fast-divider>
         <section class="info">
-          <h1>${localeStrings.text.manifest_options.info.h1}</h1>
-          <div class="info-items inputs">${this.renderInfoItems()}</div>
+          <div>
+            <h1>${localeStrings.text.manifest_options.info.h1}</h1>
+            <div class="info-items inputs">${this.renderInfoItems()}</div>
+          </div>
+          ${(this.manifest && this.siteUrl) ? 
+            html`
+            <manifest-previewer 
+            .manifest=${this.manifest}
+            .manifestUrl=${this.siteUrl}
+            .siteUrl=${this.siteUrl}
+            .stage=${this.previewStage}>
+            </manifest-previewer>` : null}
         </section>
         <fast-divider></fast-divider>
         <section class="images">
@@ -470,7 +489,6 @@ export class AppManifest extends LitElement {
             <div class="images-header">
               <div class="item-top">
                 <h3>${localeStrings.text.manifest_options.images.icons.h3}</h3>
-
                 <hover-tooltip
                   .text="${localeStrings.tooltip.manifest_options.upload}"
                   link="https://developer.mozilla.org/en-US/docs/Web/Manifest/icons"
@@ -895,11 +913,35 @@ export class AppManifest extends LitElement {
     }
   }
 
+  /**
+   * Syncs the form state with the preview component.
+   * 
+   * @param fieldName - The input name that's currently being modified
+   */
+  handlePreviewerSync(fieldName: string) {
+    switch (fieldName) {
+      case 'name': 
+        this.previewStage = 'name';
+        break;
+      case 'short_name':
+        this.previewStage = 'shortName';
+        break;
+      case 'display':
+        this.previewStage = 'display';
+        break;
+      case 'theme_color':
+        this.previewStage = 'themeColor';
+        break;
+    }
+  }
+
   handleInputChange(event: InputEvent) {
     const input = <HTMLInputElement | HTMLSelectElement>event.target;
     const fieldName = input.dataset['field'];
-
+    
     if (this.manifest && fieldName && this.manifest[fieldName]) {
+      this.handlePreviewerSync(fieldName);
+
       // to-do Justin: Figure out why typescript is casting input.value to a string
       // automatically and how to cast to a better type that will actually compile
       this.updateManifest({
@@ -958,6 +1000,7 @@ export class AppManifest extends LitElement {
       const value = (<HTMLInputElement>event.target).value;
 
       this.themeColor = value;
+      this.handlePreviewerSync('theme_color');
       this.updateManifest({
         theme_color: value,
       });
